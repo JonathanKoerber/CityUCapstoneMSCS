@@ -1,9 +1,7 @@
 package server
 
-import "golang.org/x/crypto/ssh"
-
-type ProtocolServer interface {
-	Start(*ssh.ServerConfig, int) error
+type ProtocolTCPServer interface {
+	Start(port int)
 	Reset()
 	Stop()
 }

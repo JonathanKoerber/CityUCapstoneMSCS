@@ -3,16 +3,23 @@ package main
 import (
 	"fmt"
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/app/server"
-	"time"
 )
 
 func main() {
-	sshServer := server.NewSSHServer(":2222")
-	if err := sshServer.Start(); err != nil {
-		panic(err)
+
+	protoclTCPServer := make(map[int]server.ProtocolTCPServer)
+	protoclTCPServer[2222] = &server.SSHServer{}
+
+	// start servers
+	// Todo: create logic to start only some services
+	for port, server := range protoclTCPServer {
+		server.Start(port)
 	}
-	for {
-		time.Sleep(10 * time.Second)
-	}
-	fmt.Println("Hello World")
+	defer func() {
+		for _, server := range protoclTCPServer {
+			server.Stop()
+		}
+	}()
+	fmt.Println("Servers running...")
+	select {}
 }
