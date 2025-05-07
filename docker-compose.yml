@@ -1,0 +1,42 @@
+services:
+  honeypot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "2222:2222" # TODO need to change to handle prot 22
+      - "502:502"
+    depends_on: 
+      - milvus
+      - ollama
+    networks:
+      - honeynet
+
+  milvus:
+    image:  milvusdb/milvus:2.5-20250507-22582a45
+    container_name: milvas-honepot
+    command: ["milvus", "run", "standalone"]
+    ports: 
+      - "19530:19530"
+      - "9091:9091"
+    environment:
+      - MILVUS_MODE=standalone
+    volumes:
+      - milvus-data:/var/lib/milvus
+    networks:
+      - honeynet
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11424:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - honeynet
+
+networks:
+  honeynet:
+
+volumes:
+  ollama:
+  milvus-data:
