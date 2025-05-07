@@ -1,0 +1,10 @@
+protocol: tcp
+tcp:
+  host: 127.0.0.1
+  port: 502
+unit_id: 1
+requests:
+  - type: read_holding_registers
+    address: 1
+    count: 4
+

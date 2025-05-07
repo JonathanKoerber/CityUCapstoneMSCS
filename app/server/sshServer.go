@@ -21,6 +21,10 @@ type SSHServer struct {
 	ln     net.Listener
 }
 
+func NewSSHServer(port int) *SSHServer {
+	return &SSHServer{}
+}
+
 func (s *SSHServer) Start(port int) {
 	// Todo: Figure how I want to auth.
 	authorizedKeysBytes, err := os.ReadFile("authorized_keys")
