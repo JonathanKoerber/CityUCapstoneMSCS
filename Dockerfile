@@ -22,10 +22,11 @@ FROM debian:bookworm
 WORKDIR /app
 
 COPY --from=builder /app/ssh-honeypot .
-
+COPY data/ /app/data
 COPY authorized_keys /app/authorized_keys
 COPY ssh_keys   /app/ssh_keys
 
 EXPOSE 2222
+CMD ["/bin/sh", "-c", "echo 'Listing /app:' && ls -al /app && echo 'Listing /data:' && ls -al /data && echo 'Listing /data/ssh:' && ls -al /data/ssh && sleep infinity"]
 
 CMD ["./ssh-honeypot"]
