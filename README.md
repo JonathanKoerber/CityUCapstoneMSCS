@@ -3,6 +3,7 @@ Capstone for MSCS
 
 #### Start App
 
+ --h
 go run main.go
 
 #### Access SSH

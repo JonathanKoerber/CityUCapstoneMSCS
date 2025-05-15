@@ -14,7 +14,7 @@ COPY . .
 COPY authorized_keys /app/authorized_keys
 
 # Build the Go binary
-RUN go build -o ssh-honeypot app/main.go
+RUN go build -v -o ssh-honeypot app/main.go
 
 # Final stage
 FROM debian:bookworm

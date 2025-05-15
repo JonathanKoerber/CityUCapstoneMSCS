@@ -21,22 +21,23 @@ type SSHServer struct {
 	ln     net.Listener
 }
 
-func NewSSHServer(port int) *SSHServer {
-	return &SSHServer{}
+func NewSSHServer() (*SSHServer, error) {
+	return &SSHServer{}, nil
 }
 
 func (s *SSHServer) Start(port int) {
 	// Todo: Figure how I want to auth.
+	log.Printf("Starting server on port %d\n", port)
 	authorizedKeysBytes, err := os.ReadFile("authorized_keys")
 
 	if err != nil {
-		log.Fatalf("Failed to load auth keys, err: %v", err)
+		log.Printf("Failed to load auth keys, err: %v", err)
 	}
 	authorizedKeysMap := map[string]bool{}
 	for len(authorizedKeysBytes) > 0 {
 		pubKey, _, _, rest, err := ssh.ParseAuthorizedKey(authorizedKeysBytes)
 		if err != nil {
-			log.Fatalf("Failed to parse authorized_keys, err: %v", err)
+			log.Printf("Failed to parse authorized_keys, err: %v", err)
 		}
 		authorizedKeysMap[string(pubKey.Marshal())] = true
 		authorizedKeysBytes = rest
@@ -66,24 +67,24 @@ func (s *SSHServer) Start(port int) {
 	}
 	privateBytes, err := os.ReadFile("ssh_keys/id_rsa")
 	if err != nil {
-		log.Fatalf("Failed to load private keys, err: %v", err)
+		log.Printf("Failed to load private keys, err: %v", err)
 	}
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		log.Fatalf("Failed to parse private keys, err: %v", err)
+		log.Printf("Failed to parse private keys, err: %v", err)
 	}
 	s.Config.AddHostKey(private)
 
 	// host config done host can now be configured
 	s.ln, err = net.Listen("tcp", "0.0.0.0:2222")
 	if err != nil {
-		log.Fatalf("Failed to listen, err: %v", err)
+		log.Printf("Failed to listen, err: %v", err)
 	}
 
 	// create network connection
 	nConn, err := s.ln.Accept()
 	if err != nil {
-		log.Fatalf("Failed to accept incoming connections, err: %v", err)
+		log.Printf("Failed to accept incoming connections, err: %v", err)
 	}
 	log.Printf("Accepted incoming connection from %s", nConn.RemoteAddr())
 
@@ -91,7 +92,7 @@ func (s *SSHServer) Start(port int) {
 	// handshake must be preformed on the incomming conn
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.Config)
 	if err != nil {
-		log.Fatalf("Failed to handshake, err: %v", err)
+		log.Printf("Failed to handshake, err: %v", err)
 	}
 	if conn.Permissions != nil {
 		if fp, ok := conn.Permissions.Extensions["pubkey-fp"]; ok {
@@ -139,7 +140,7 @@ func (s *SSHServer) Start(port int) {
 		}
 		channel, requests, err := newChannel.Accept()
 		if err != nil {
-			log.Fatalf("Failed to accept channel, err: %v", err)
+			log.Printf("Failed to accept channel, err: %v", err)
 		}
 		// Channels have a type, depending on the application level
 		// protocol intended. In the case of a shell, the type is
@@ -186,18 +187,18 @@ func ServerConfig_AddHostKey() {
 	}
 	privateBytes, err := os.ReadFile("ssh_keys/id_rsa")
 	if err != nil {
-		log.Fatalf("Failed to load private keys, err: %v", err)
+		log.Printf("Failed to load private keys, err: %v", err)
 	}
 
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		log.Fatalf("Failed to parse private keys, err: %v", err)
+		log.Printf("Failed to parse private keys, err: %v", err)
 	}
 
 	// Restrict host key algorithms to disable ssh-rsa
 	signer, err := ssh.NewSignerWithAlgorithms(private.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoECDSA256, ssh.KeyAlgoRSASHA512})
 	if err != nil {
-		log.Fatalf("Failed to create private key with restricted algorithms: %v", err)
+		log.Printf("Failed to create private key with restricted algorithms: %v", err)
 	}
 	config.AddHostKey(signer)
 }

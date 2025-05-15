@@ -1,20 +1,20 @@
 package emulator
 
 import (
-	"fmt"
 	"github.com/qdrant/go-client/qdrant"
+	"log"
 )
 
 type SSHEmulator struct {
-	Config  NodeConfig
+	//Config  NodeConfig
 	Context NodeContext
 }
 
 func NewSSHEmulator() *SSHEmulator {
 	return &SSHEmulator{}
 }
-func (s *SSHEmulator) Init(config NodeConfig) error {
-	s.Config = config
+func (s *SSHEmulator) Init(store *QdrantStore) error {
+	//	s.Config = config
 
 	// Hardcoded context values for now; tweak later
 	s.Context = NodeContext{
@@ -24,9 +24,9 @@ func (s *SSHEmulator) Init(config NodeConfig) error {
 		DefaultSegmentDistance: qdrant.Distance_Cosine,
 		VectorSize:             1536, // typical OpenAI/embedding vector size
 		DefaultSegmentNumber:   nil,  // or a pointer if needed
+		Store:                  store,
 	}
-
-	fmt.Printf("Initialized SSHEmulator with collection: %s\n", s.Context.CollectionName)
+	log.Printf("Initialized SSHEmulator with collection: %s\n", s.Context.CollectionName)
 	return nil
 }
 

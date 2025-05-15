@@ -17,15 +17,19 @@ services:
       - "11424:11434"
     volumes:
       - ollama:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_MAX_LOADED_MODELS=3
+
     networks:
       - honeynet
-    entrypoint: ["/bin/sh", "-c", "ollama pull deepseek-coder && ollama serve"]
+#    CMD: ["/bin/sh", "-c", "ollama pull deepseek-coder && ollama serve"]
 
 
   honeypot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-App
     ports:
       - "2222:2222" # TODO need to change to handle prot 22
       - "502:502"

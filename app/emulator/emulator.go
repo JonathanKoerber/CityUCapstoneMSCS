@@ -17,7 +17,7 @@ import (
 
 type Emulator interface {
 	// New create a new emulator with node-specific data
-	Init(config NodeConfig) error
+	Init(store *QdrantStore) error
 
 	// HandleCommand Handles input to protocol server
 	HandleCommand(sessionID string, input string) (string, error)
@@ -55,7 +55,7 @@ type NodeContext struct {
 	DefaultSegmentDistance qdrant.Distance
 	DefaultSegmentNumber   *uint64
 	VectorSize             uint64
-	Store                  QdrantStore
+	Store                  *QdrantStore
 }
 
 func (store *QdrantStore) Init(emulators []Emulator) error {
@@ -68,16 +68,22 @@ func (store *QdrantStore) Init(emulators []Emulator) error {
 		// GrpcOptions: []grpc.DialOption{},
 	})
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error initializing qdrant: %v", err)
 	}
-	defer client.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// TODO change over to mongodb
+	store.Client = *client
+	defer store.Client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 	defer cancel()
-	healthCheckResult, err := client.HealthCheck(ctx)
+
+	healthCheckResult, err := store.Client.HealthCheck(ctx)
 	if err != nil {
-		log.Fatalf("Could not connect to qdrant %v: %v", store.VectorDBURI, err)
+		log.Printf("Could not connect to qdrant %v: %v", store.VectorDBURI, err)
+	} else {
+		log.Printf("Health check result: %v", healthCheckResult)
 	}
-	log.Printf("QdrantStore Health Check Result: %v", healthCheckResult)
+
 	for _, emulator := range emulators {
 		nodeContext, err := emulator.GetContext()
 		exists, err := client.CollectionExists(ctx, nodeContext.CollectionName)
@@ -114,34 +120,13 @@ func (store *QdrantStore) Init(emulators []Emulator) error {
 	return nil
 }
 
-func (store *QdrantStore) generateEmbedding(prompt string) ([]float32, error) {
-	reqBody := map[string]interface{}{
-		"model":  store.Model,
-		"prompt": prompt,
-	}
-	reqBytes, err := json.Marshal(reqBody)
-	resp, err := http.Post(store.OllamaURI+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
-	if err != nil {
-		return nil, fmt.Errorf("Embedding request failded with %v", err)
-	}
-	log.Printf("emulator response: %v", resp)
-	defer resp.Body.Close()
-	var result struct {
-		Embedding []float32 `json:"embedding"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("Failded to decode embedding: %w", err)
-	}
-	return result.Embedding, nil
-}
-
-func (store *QdrantStore) VectorContext(emulator Emulator) ([]*qdrant.PointStruct, error) {
+func (store *QdrantStore) ReadContextFiles(emulator Emulator) ([]string, error) {
 	nodeContext, err := emulator.GetContext()
 	if err != nil {
 		log.Fatalf("Could not get context for %v: %v", nodeContext.CollectionName, err)
 	}
 	//  TODO walk dir and vectorize files.
-	// TODO this is a dir need to embed alll the files that are in thid the dir.
+	// TODO this is a dir need to embed all the files that are in third the dir.
 	data, err := os.ReadDir(nodeContext.PathToContext)
 	if err != nil {
 		log.Fatalf("Could not read context: %v", err)
@@ -156,38 +141,75 @@ func (store *QdrantStore) VectorContext(emulator Emulator) ([]*qdrant.PointStruc
 		filePath := filepath.Join(nodeContext.PathToContext, entry.Name())
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			log.Fatalf("Could not read file: %v", err)
+			log.Printf("Could not read file: %v", err)
 		}
 		lines = strings.Split(string(data), "\n")
 	}
-	var result []string
-	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	var points []*qdrant.PointStruct
-	for _, line := range result {
-		vector, err := store.generateEmbedding(line) // you implement this
-		if err != nil {
-			return nil, err
-		}
-		point := qdrant.PointStruct{
-			Vectors: qdrant.NewVectors(vector...),
-			Payload: map[string]*qdrant.Value{
-				"command": qdrant.NewValueString(line),
-			},
-		}
-		points = append(points, &point)
-	}
-	return points, nil
+	return lines, nil
 }
 
-func (store *QdrantStore) AddVectors(collectionName string, vectors []*qdrant.PointStruct) error {
-	ctx := context.Background()
-	_, err := store.Client.Upsert(ctx, &qdrant.UpsertPoints{
+func (store *QdrantStore) EmbedContext(line string) (*qdrant.PointStruct, error) {
+	reqBody := map[string]interface{}{
+		"model":  store.Model,
+		"prompt": line,
+	}
+	reqBytes, err := json.Marshal(reqBody)
+	resp, err := http.Post(store.OllamaURI+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return nil, fmt.Errorf("embedding request failded with: %v", err)
+	}
+
+	var result struct {
+		Embedding []float32 `json:"embedding"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failded to decode embedding: %w", err)
+	}
+	resp.Body.Close()
+	point := qdrant.PointStruct{
+		Vectors: qdrant.NewVectors(result.Embedding...),
+		Payload: map[string]*qdrant.Value{
+			"command": qdrant.NewValueString(line),
+		},
+	}
+	return &point, nil
+}
+
+//	func (store *QdrantStore) generateEmbedding(prompt string) ([]float32, error) {
+//		reqBody := map[string]interface{}{
+//			"model":  store.Model,
+//			"prompt": prompt,
+//		}
+//		reqBytes, err := json.Marshal(reqBody)
+//		resp, err := http.Post(store.OllamaURI+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
+//		if err != nil {
+//			return nil, fmt.Errorf("Embedding request failded with %v", err)
+//		}
+//		log.Printf("emulator response: %v", resp)
+//		defer resp.Body.Close()
+//		var result struct {
+//			Embedding []float32 `json:"embedding"`
+//		}
+//		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+//			return nil, fmt.Errorf("Failded to decode embedding: %w", err)
+//		}
+//		return result.Embedding, nil
+//	}
+//
+// TODO change to Mongodb
+func (store *QdrantStore) AddVectors(collectionName string, vector *qdrant.PointStruct) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3000)
+	waitUpsert := true
+	defer cancel()
+	healthcheckResult, err := store.Client.HealthCheck(ctx)
+	if err != nil {
+		log.Printf("Could not connect to qdrant %v: %v", store.VectorDBURI, err)
+	}
+	log.Printf("Health check result: %v", healthcheckResult)
+	_, err = store.Client.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: collectionName,
-		Points:         vectors,
+		Wait:           &waitUpsert,
+		Points:         []*qdrant.PointStruct{vector},
 	})
 	return err
 }
