@@ -1,15 +1,27 @@
 services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: qdrant
+#  qdrant:
+#    image: qdrant/qdrant:latest
+#    container_name: qdrant
+#    ports:
+#      - "6333:6333"
+#      - "6334:6334"
+#    volumes:
+#      - qdrant_data:/qdrant/storage
+#    networks:
+#      - honeynet
+#    restart: unless-stopped
+  vector_store:
+    image: mongo:latest
+    restart: always
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: 'admin'
+      MONGO_INITDB_ROOT_PASSWORD: 'password'
     volumes:
-      - qdrant_data:/qdrant/storage
+      - vector_data:/mongodb/storage
     networks:
       - honeynet
-    restart: unless-stopped
 
   ollama:
     image: ollama/ollama
@@ -34,7 +46,8 @@ services:
       - "2222:2222" # TODO need to change to handle prot 22
       - "502:502"
     depends_on:
-      - qdrant
+#      - qdrant
+      - vector_store
       - ollama
     networks:
       - honeynet
@@ -44,4 +57,4 @@ networks:
 
 volumes:
   ollama:
-  qdrant_data:
+  vector_data:

@@ -6,6 +6,7 @@ import (
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/app/server"
 	"github.com/qdrant/go-client/qdrant"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,14 +16,13 @@ import (
 	"github.com/ollama/ollama/api"
 )
 
+// TODO move env to docker env
 func main() {
 	// ENV VAR
 	os.Setenv("GO_ENV", "development")
 	os.Setenv("OLLAMA_URL", "http://Ollama:11434")
 	os.Setenv("MODEL", "mistral")
-	os.Setenv("VEC_STORE_URL", "qdrant")
-	os.Setenv("VEC_STORE_PORT", "6334")
-
+	os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
 	ctx := context.Background()
 
 	var ollamaRawUrl string
@@ -91,24 +91,19 @@ func main() {
 	//	log.Printf("Ollama, response: %v:", req)
 	//}
 
-	store := emulator.QdrantStore{
-		VectorDBURI: os.Getenv("VEC_STORE_URL"),
-		Port:        6334,
-		OllamaURI:   os.Getenv("OLLAMA_URL"),
-		Model:       os.Getenv("MODEL"),
-	}
+	store := emulator.EmbeddingStore{}
 	// register emulators
 	sshEmulator := emulator.NewSSHEmulator()
 	if err := sshEmulator.Init(&store); err != nil {
 		log.Fatalf("Failed to init ssh emulator: %v", err)
 	}
 	// set up store
-	if err := store.Init([]emulator.Emulator{sshEmulator}); err != nil {
+	if err := store.Init(); err != nil {
 		log.Printf("Failed to init store: %v", err)
 	}
 	lineChan := make(chan string, 1000)
-	embedingsChan := make(chan *qdrant.PointStruct, 1000)
-
+	embeddingChan := make(chan *qdrant.PointStruct, 1000)
+	log.Printf("Starting to embed data")
 	go func() {
 		defer close(lineChan)
 		lines, err := store.ReadContextFiles(sshEmulator)
@@ -126,7 +121,7 @@ func main() {
 		}
 	}()
 	go func() {
-		defer close(embedingsChan)
+		defer close(embeddingChan)
 		for line := range lineChan {
 			embedding, err := store.EmbedContext(line)
 			if err != nil {
@@ -134,7 +129,7 @@ func main() {
 				continue
 			}
 			select {
-			case embedingsChan <- embedding:
+			case embeddingChan <- embedding:
 			default:
 				log.Printf("Embedding channel full, waiting...")
 				time.Sleep(1 * time.Second)
@@ -142,7 +137,7 @@ func main() {
 		}
 	}()
 	go func() {
-		for embedding := range embedingsChan {
+		for embedding := range embeddingChan {
 			nodeCtx, err := sshEmulator.GetContext()
 			if err != nil {
 				log.Printf("Failed to get context: %v", err)
@@ -153,26 +148,39 @@ func main() {
 			}
 		}
 	}()
-	// Register Protocol Servers
-	protocolTCPServer := make(map[int]server.ProtocolTCPServer)
-	sshServer, err := server.NewSSHServer()
+	// Start and run protocol Servers
+	log.Println("Data embedded")
+	sshServer, err := server.NewSSHServer(2222)
+	if err != nil {
+		log.Fatalf("Failed init server: %v", err)
+	}
+	sshServer.Start()
+	log.Println("Server started getting ready to accept connections")
+	inComingChan := make(chan net.Conn, 100)
+	go func() {
+		log.Println("Listening for incoming connections")
+		for {
+			log.Println("Waiting for incoming connection")
+			inComing, err := sshServer.Listener.Accept()
+			if err != nil {
+				log.Printf("Failed to accept incomming socket: %v", err)
+				continue
+			}
+			inComingChan <- inComing
+		}
+		log.Println("Closing incoming connections")
+	}()
+	go func() {
+		log.Println("Listening for outgoing connections from inComming Channels")
+		for conn := range inComingChan {
+			go sshServer.HandleConn(conn)
+		}
+		log.Println("Done from inComming Channels")
+	}()
 	if err != nil {
 		log.Fatalf("Failed to create server ssh server: %v", err)
 	}
-	protocolTCPServer[2222] = sshServer
 
-	//protocolTCPServer[502] = &server.ModbusTCPServer{}
-	// start servers
-	// Todo: create logic to start only some services
-	//for port, server := range protocolTCPServer {
-	//	log.Printf("Starting server on port %d\n", port)
-	//	go server.Start(port)
-	//}
-	//defer func() {
-	//	for _, server := range protocolTCPServer {
-	//		server.Stop()
-	//	}
-	//}()
-	sshServer.Start(888)
 	fmt.Println("Servers running...")
+	select {}
 }

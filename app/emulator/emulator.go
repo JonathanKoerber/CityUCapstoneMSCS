@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/qdrant/go-client/qdrant"
 	"log"
 	"net/http"
 	"os"
@@ -12,12 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qdrant/go-client/qdrant"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Emulator interface {
 	// New create a new emulator with node-specific data
-	Init(store *QdrantStore) error
+	Init(store *EmbeddingStore) error
 
 	// HandleCommand Handles input to protocol server
 	HandleCommand(sessionID string, input string) (string, error)
@@ -28,12 +30,8 @@ type Emulator interface {
 	Close() error
 }
 
-type QdrantStore struct {
-	Client      qdrant.Client
-	VectorDBURI string
-	Port        int
-	OllamaURI   string
-	Model       string
+type EmbeddingStore struct {
+	Client      *mongo.Client
 	Collections []string
 }
 
@@ -49,78 +47,33 @@ type NodeConfig struct {
 }
 
 type NodeContext struct {
-	CollectionName         string
-	PathToContext          string
-	Distance               qdrant.Distance
-	DefaultSegmentDistance qdrant.Distance
-	DefaultSegmentNumber   *uint64
-	VectorSize             uint64
-	Store                  *QdrantStore
+	CollectionName string
+	PathToContext  string
+	Store          *EmbeddingStore
 }
 
-func (store *QdrantStore) Init(emulators []Emulator) error {
-	client, err := qdrant.NewClient(&qdrant.Config{
-		Host: store.VectorDBURI,
-		Port: store.Port,
-		// APIKey: "<API_KEY>",
-		// UseTLS: true,
-		// TLSConfig: &tls.Config{},
-		// GrpcOptions: []grpc.DialOption{},
-	})
-	if err != nil {
-		log.Fatalf("Error initializing qdrant: %v", err)
-	}
-	// TODO change over to mongodb
-	store.Client = *client
-	defer store.Client.Close()
+func NewEmulator() EmbeddingStore {
+	return EmbeddingStore{}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+}
+
+func (store *EmbeddingStore) Init() error {
+	mangoURI := os.Getenv("VEC_STORE_URI")
+	log.Printf("VEC_STORE_URI: %s", mangoURI)
+	clientOptions := options.Client().ApplyURI(mangoURI)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		log.Printf("Error initializing MONGODB is not connecting: %v", err)
+		cancel()
+		return err
+	}
+	store.Client = client
 	defer cancel()
-
-	healthCheckResult, err := store.Client.HealthCheck(ctx)
-	if err != nil {
-		log.Printf("Could not connect to qdrant %v: %v", store.VectorDBURI, err)
-	} else {
-		log.Printf("Health check result: %v", healthCheckResult)
-	}
-
-	for _, emulator := range emulators {
-		nodeContext, err := emulator.GetContext()
-		exists, err := client.CollectionExists(ctx, nodeContext.CollectionName)
-		if err != nil {
-			log.Fatalf("Could not check if collection exists: %v", err)
-			return err
-		}
-		// check to see if the collection name exists
-		if !exists {
-			err = client.CreateCollection(ctx, &qdrant.CreateCollection{
-				CollectionName: nodeContext.CollectionName,
-				VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-					Size:     nodeContext.VectorSize,
-					Distance: nodeContext.Distance,
-				}),
-				OptimizersConfig: &qdrant.OptimizersConfigDiff{
-					DefaultSegmentNumber: nodeContext.DefaultSegmentNumber,
-				},
-			})
-			if err != nil {
-				log.Fatalf("Could not create collection: %v", err)
-			} else {
-				log.Printf("Created collection: %v", nodeContext.CollectionName)
-			}
-		}
-	} // > error here exception something
-	collection, err := client.ListCollections(ctx)
-	store.Collections = collection
-	if err != nil {
-		log.Fatalf("Could not list collections: %v", err)
-	} else {
-		log.Printf("Listing collections: %s", &collection)
-	}
 	return nil
 }
 
-func (store *QdrantStore) ReadContextFiles(emulator Emulator) ([]string, error) {
+func (store *EmbeddingStore) ReadContextFiles(emulator Emulator) ([]string, error) {
 	nodeContext, err := emulator.GetContext()
 	if err != nil {
 		log.Fatalf("Could not get context for %v: %v", nodeContext.CollectionName, err)
@@ -148,13 +101,13 @@ func (store *QdrantStore) ReadContextFiles(emulator Emulator) ([]string, error) 
 	return lines, nil
 }
 
-func (store *QdrantStore) EmbedContext(line string) (*qdrant.PointStruct, error) {
+func (store *EmbeddingStore) EmbedContext(line string) (*qdrant.PointStruct, error) {
 	reqBody := map[string]interface{}{
-		"model":  store.Model,
+		"model":  os.Getenv("MODEL"),
 		"prompt": line,
 	}
 	reqBytes, err := json.Marshal(reqBody)
-	resp, err := http.Post(store.OllamaURI+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
+	resp, err := http.Post(os.Getenv("OLLAMA_URL")+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, fmt.Errorf("embedding request failded with: %v", err)
 	}
@@ -175,41 +128,16 @@ func (store *QdrantStore) EmbedContext(line string) (*qdrant.PointStruct, error)
 	return &point, nil
 }
 
-//	func (store *QdrantStore) generateEmbedding(prompt string) ([]float32, error) {
-//		reqBody := map[string]interface{}{
-//			"model":  store.Model,
-//			"prompt": prompt,
-//		}
-//		reqBytes, err := json.Marshal(reqBody)
-//		resp, err := http.Post(store.OllamaURI+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
-//		if err != nil {
-//			return nil, fmt.Errorf("Embedding request failded with %v", err)
-//		}
-//		log.Printf("emulator response: %v", resp)
-//		defer resp.Body.Close()
-//		var result struct {
-//			Embedding []float32 `json:"embedding"`
-//		}
-//		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-//			return nil, fmt.Errorf("Failded to decode embedding: %w", err)
-//		}
-//		return result.Embedding, nil
-//	}
-//
-// TODO change to Mongodb
-func (store *QdrantStore) AddVectors(collectionName string, vector *qdrant.PointStruct) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3000)
-	waitUpsert := true
-	defer cancel()
-	healthcheckResult, err := store.Client.HealthCheck(ctx)
+func (store *EmbeddingStore) AddVectors(collectionName string, vector *qdrant.PointStruct) error {
+
+	collection := store.Client.Database("honeypot").Collection(collectionName)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	resp, err := collection.InsertOne(ctx, *vector)
 	if err != nil {
-		log.Printf("Could not connect to qdrant %v: %v", store.VectorDBURI, err)
+		log.Printf("Could not insert mongo honeypot database: %v", err)
 	}
-	log.Printf("Health check result: %v", healthcheckResult)
-	_, err = store.Client.Upsert(ctx, &qdrant.UpsertPoints{
-		CollectionName: collectionName,
-		Wait:           &waitUpsert,
-		Points:         []*qdrant.PointStruct{vector},
-	})
+	log.Printf("Inserted mongo %v %v", collectionName, resp.InsertedID)
+	defer cancel()
 	return err
 }

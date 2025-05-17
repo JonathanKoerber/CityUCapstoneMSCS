@@ -16,18 +16,18 @@ import (
 )
 
 type SSHServer struct {
-	Config *ssh.ServerConfig
-	Port   int
-	ln     net.Listener
+	Config   *ssh.ServerConfig
+	Port     int
+	Listener net.Listener
 }
 
-func NewSSHServer() (*SSHServer, error) {
-	return &SSHServer{}, nil
+func NewSSHServer(port int) (*SSHServer, error) {
+	return &SSHServer{Port: port}, nil
 }
 
-func (s *SSHServer) Start(port int) {
+func (s *SSHServer) Start() {
 	// Todo: Figure how I want to auth.
-	log.Printf("Starting server on port %d\n", port)
+	log.Printf("Starting server on port %d", 2222)
 	authorizedKeysBytes, err := os.ReadFile("authorized_keys")
 
 	if err != nil {
@@ -42,7 +42,7 @@ func (s *SSHServer) Start(port int) {
 		authorizedKeysMap[string(pubKey.Marshal())] = true
 		authorizedKeysBytes = rest
 	}
-
+	log.Printf("Adding ssh server Config")
 	// An SSH server is represented by a ServerConfig, which holds
 	// certificate details and handles authentication of ServerConns.
 	s.Config = &ssh.ServerConfig{
@@ -65,6 +65,7 @@ func (s *SSHServer) Start(port int) {
 			return nil, fmt.Errorf("unknown public key for %q", c.User())
 		},
 	}
+	log.Println("Reading private key files")
 	privateBytes, err := os.ReadFile("ssh_keys/id_rsa")
 	if err != nil {
 		log.Printf("Failed to load private keys, err: %v", err)
@@ -74,21 +75,19 @@ func (s *SSHServer) Start(port int) {
 		log.Printf("Failed to parse private keys, err: %v", err)
 	}
 	s.Config.AddHostKey(private)
-
+	log.Println("Added host key")
 	// host config done host can now be configured
-	s.ln, err = net.Listen("tcp", "0.0.0.0:2222")
+	s.Listener, err = net.Listen("tcp", "0.0.0.0:2222")
 	if err != nil {
 		log.Printf("Failed to listen, err: %v", err)
 	}
+}
 
-	// create network connection
-	nConn, err := s.ln.Accept()
-	if err != nil {
-		log.Printf("Failed to accept incoming connections, err: %v", err)
-	}
+func (s *SSHServer) HandleConn(nConn net.Conn) { // create network connection
+
 	log.Printf("Accepted incoming connection from %s", nConn.RemoteAddr())
 
-	// befor conn used
+	// before conn used
 	// handshake must be preformed on the incomming conn
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.Config)
 	if err != nil {
@@ -107,33 +106,15 @@ func (s *SSHServer) Start(port int) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	wg.Add(2)
-	go func(in <-chan *ssh.Request) {
-		for req := range in {
-			switch req.Type {
-			case "pty-req":
-				req.Reply(true, nil)
-			case "shell":
-				req.Reply(true, nil)
-			default:
-				req.Reply(false, nil)
-			}
-		}
-		wg.Done()
-	}(reqs)
+	wg.Add(1)
 	go func() {
 		ssh.DiscardRequests(reqs)
 		wg.Done()
 	}()
 
-	// loop to handle multiple requests spins up async process for each request
-	// Todo: Handle DDoS here?
 	for newChannel := range chans {
 		log.Printf("New channel from %s", newChannel.ChannelType(), newChannel.ExtraData())
-		// Channels have a type, depending on the application level
-		// protocol intended. In the case of a shell, the type is
-		// "session" and ServerShell may be used to present a simple
-		// terminal interface.
+		// check channel type
 		if newChannel.ChannelType() != "session" {
 			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
@@ -142,34 +123,55 @@ func (s *SSHServer) Start(port int) {
 		if err != nil {
 			log.Printf("Failed to accept channel, err: %v", err)
 		}
-		// Channels have a type, depending on the application level
-		// protocol intended. In the case of a shell, the type is
-		// "session" and ServerShell may be used to present a simple
-		// terminal interface.
+		//
 		wg.Add(1)
 		go func(in <-chan *ssh.Request) {
 			for req := range in {
-				req.Reply(req.Type == "shell", nil)
+				switch req.Type {
+				case "pty-req":
+					log.Println("Received PTY request")
+					req.Reply(true, nil) // Accept the PTY allocation
+				case "shell":
+					log.Println("Received shell request")
+					req.Reply(true, nil) // Accept the shell request
+				default:
+					log.Printf("Unhandled request: %s", req.Type)
+					req.Reply(false, nil)
+				}
 			}
 			wg.Done()
 		}(requests)
 		// Todo: pip to system that will be attacked.
 		term := terminal.NewTerminal(channel, "> ")
-
-		wg.Add(1)
-		go func() {
-			defer func() {
-				channel.Close()
-				wg.Done()
-			}()
-			for {
-				line, err := term.ReadLine()
-				if err != nil {
-					break
-				}
-				fmt.Println(line)
+		log.Printf("channel, %v", channel)
+		//REPL Loop
+		for {
+			line, err := term.ReadLine()
+			if err != nil {
+				log.Printf("Failed to read line, err: %v", err)
+				break
 			}
-		}()
+
+			term.Write([]byte(line))
+			term.Write([]byte("bro whats up?"))
+		}
+		defer channel.Close()
+		defer wg.Done()
+
+		//wg.Add(1)
+		//go func() {
+		//	defer func() {
+		//		channel.Close()
+		//		wg.Done()
+		//	}()
+		//	for {
+		//		line, err := term.ReadLine()
+		//		if err != nil {
+		//			break
+		//		}
+		//		fmt.Println("hello youjust typed: %v", line)
+		//	}
+		//}()
 	}
 }
 
@@ -204,14 +206,14 @@ func ServerConfig_AddHostKey() {
 }
 
 func (s *SSHServer) Reset() {
-	if s.ln != nil {
-		s.ln.Close()
+	if s.Listener != nil {
+		s.Listener.Close()
 	}
-	s.Start(s.Port)
+	s.Start()
 }
 
 func (s *SSHServer) Stop() {
-	if s.ln != nil {
-		s.ln.Close()
+	if s.Listener != nil {
+		s.Listener.Close()
 	}
 }
