@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/app/server"
-	"github.com/qdrant/go-client/qdrant"
 	"log"
 	"net"
 	"net/http"
@@ -91,22 +90,23 @@ func main() {
 	//	log.Printf("Ollama, response: %v:", req)
 	//}
 
-	store := emulator.EmbeddingStore{}
+	store := emulator.Store{}
+	if err := store.Init(); err != nil {
+		log.Printf("Failed to init store: %v", err)
+	}
+	// set up store
 	// register emulators
 	sshEmulator := emulator.NewSSHEmulator()
 	if err := sshEmulator.Init(&store); err != nil {
 		log.Fatalf("Failed to init ssh emulator: %v", err)
 	}
-	// set up store
-	if err := store.Init(); err != nil {
-		log.Printf("Failed to init store: %v", err)
-	}
+	sshContext, _ := sshEmulator.GetContext()
 	lineChan := make(chan string, 1000)
-	embeddingChan := make(chan *qdrant.PointStruct, 1000)
+	embeddingChan := make(chan *emulator.EmbeddedDocs, 1000)
 	log.Printf("Starting to embed data")
 	go func() {
 		defer close(lineChan)
-		lines, err := store.ReadContextFiles(sshEmulator)
+		lines, err := store.ReadContextFiles(sshContext)
 		if err != nil {
 			log.Printf("Failed to read context files: %v", err)
 		}
@@ -123,7 +123,7 @@ func main() {
 	go func() {
 		defer close(embeddingChan)
 		for line := range lineChan {
-			embedding, err := store.EmbedContext(line)
+			embedding, err := store.EmbedDocs(line)
 			if err != nil {
 				log.Printf("Failed to embed context: %v", err)
 				continue
@@ -172,8 +172,10 @@ func main() {
 	}()
 	go func() {
 		log.Println("Listening for outgoing connections from inComming Channels")
+		sshEmulator := emulator.NewSSHEmulator()
+		sshEmulator.Init(&store)
 		for conn := range inComingChan {
-			go sshServer.HandleConn(conn)
+			go sshServer.HandleConn(conn, *sshEmulator)
 		}
 		log.Println("Done from inComming Channels")
 	}()

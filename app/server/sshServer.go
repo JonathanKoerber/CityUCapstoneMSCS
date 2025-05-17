@@ -7,8 +7,8 @@ package server
 
 import (
 	"fmt"
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/app/emulator"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"net"
 	"os"
@@ -83,7 +83,7 @@ func (s *SSHServer) Start() {
 	}
 }
 
-func (s *SSHServer) HandleConn(nConn net.Conn) { // create network connection
+func (s *SSHServer) HandleConn(nConn net.Conn, sshEmulator emulator.SSHEmulator) { // create network connection
 
 	log.Printf("Accepted incoming connection from %s", nConn.RemoteAddr())
 
@@ -142,37 +142,9 @@ func (s *SSHServer) HandleConn(nConn net.Conn) { // create network connection
 			wg.Done()
 		}(requests)
 		// Todo: pip to system that will be attacked.
-		term := terminal.NewTerminal(channel, "> ")
-		log.Printf("channel, %v", channel)
-		//REPL Loop
-		for {
-			line, err := term.ReadLine()
-			if err != nil {
-				log.Printf("Failed to read line, err: %v", err)
-				break
-			}
-
-			term.Write([]byte(line))
-			term.Write([]byte("bro whats up?"))
-		}
-		defer channel.Close()
-		defer wg.Done()
-
-		//wg.Add(1)
-		//go func() {
-		//	defer func() {
-		//		channel.Close()
-		//		wg.Done()
-		//	}()
-		//	for {
-		//		line, err := term.ReadLine()
-		//		if err != nil {
-		//			break
-		//		}
-		//		fmt.Println("hello youjust typed: %v", line)
-		//	}
-		//}()
+		go sshEmulator.HandleInput(channel)
 	}
+	defer wg.Done()
 }
 
 // TODO add to the SSHServer struct
