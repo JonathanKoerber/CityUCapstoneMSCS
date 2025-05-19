@@ -3,11 +3,13 @@ module github.com/JonathanKoerber/CityUCapstoneMSCS
 go 1.24.2
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/ollama/ollama v0.6.8
 	github.com/qdrant/go-client v1.14.0
 	github.com/simonvetter/modbus v1.6.3
 	go.mongodb.org/mongo-driver v1.17.3
 	golang.org/x/crypto v0.37.0
+	google.golang.org/grpc v1.72.0
 )
 
 require (
@@ -28,6 +30,5 @@ require (
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
-	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )

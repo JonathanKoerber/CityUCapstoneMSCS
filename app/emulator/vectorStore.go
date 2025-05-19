@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"log"
 	"net/http"
@@ -13,8 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/qdrant/go-client/qdrant"
 )
 
 type VectorStore interface {
@@ -31,7 +31,7 @@ type VectorStore interface {
 }
 
 type Store struct {
-	Client      *mongo.Client
+	Client      *qdrant.Client
 	Collections []string
 }
 
@@ -41,23 +41,28 @@ func NewEmulator() Store {
 }
 
 func (store *Store) Init() error {
-	mangoURI := os.Getenv("VEC_STORE_URI")
-	log.Printf("VEC_STORE_URI: %s", mangoURI)
-	clientOptions := options.Client().ApplyURI(mangoURI)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, clientOptions)
+	//vecStoreUri := os.Getenv("VEC_STORE_URI")
+	client, err := qdrant.NewClient(&qdrant.Config{
+		Host: "qdrant",
+		Port: 6334,
+	})
 	if err != nil {
-		log.Printf("Error initializing MONGODB is not connecting: %v", err)
-		cancel()
-		return err
+		log.Fatalf("Fatal error connecting to VEC store: %v", err)
 	}
+	// add qdrant client to vector store
 	store.Client = client
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return nil
+	healthCheckResult, err := client.HealthCheck(ctx)
+	if err != nil {
+		log.Fatalf("Fatal error connecting to VEC store: %v", err)
+	}
+	log.Printf("Health check result: %v", healthCheckResult)
+	return err
 }
 
 func (store *Store) ReadContextFiles(nodeContext NodeContext) ([]string, error) {
-	//  TODO walk dir and vectorize files.
+	//  TODO walk dir and vectorized files.
 	// TODO this is a dir need to embed all the files that are in third the dir.
 	data, err := os.ReadDir(nodeContext.PathToContext)
 	if err != nil {
@@ -76,10 +81,15 @@ func (store *Store) ReadContextFiles(nodeContext NodeContext) ([]string, error) 
 			log.Printf("Could not read file: %v", err)
 		}
 		lines = strings.Split(string(data), "\n")
+		for line := range lines {
+			lines[line] = strings.TrimSpace(lines[line])
+		}
 	}
 	return lines, nil
 }
-func (store *Store) EmbedString(line string) ([]float32, error) {
+
+func (store *Store) EmbedDocs(line string) (*qdrant.PointStruct, error) {
+	id := uuid.New().String()
 	reqBody := map[string]interface{}{
 		"model":  os.Getenv("MODEL"),
 		"prompt": line,
@@ -102,46 +112,65 @@ func (store *Store) EmbedString(line string) ([]float32, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failded to decode embedding: %w", err)
 	}
-	return result.Embedding, nil
-}
-func (store *Store) EmbedDocs(line string) (*EmbeddedDocs, error) {
-	reqBody := map[string]interface{}{
-		"model":  os.Getenv("MODEL"),
-		"prompt": line,
-	}
-	reqBytes, err := json.Marshal(reqBody)
-	resp, err := http.Post(os.Getenv("OLLAMA_URL")+"/api/embeddings", "application/json", bytes.NewBuffer(reqBytes))
+	//embedding := make([]float64, len(result.Embedding))
+	payload := map[string]interface{}{"content": line}
 	if err != nil {
-		return nil, fmt.Errorf("embedding request failded with: %v", err)
+		return nil, fmt.Errorf("failed to create payload: %w", err)
 	}
-	defer resp.Body.Close()
+	if len(result.Embedding) == 0 {
+		log.Printf("no embedding found: %s", line)
+		return nil, nil
+	}
+	point := &qdrant.PointStruct{
+		Id: &qdrant.PointId{
+			PointIdOptions: &qdrant.PointId_Uuid{Uuid: id}, // or use UIntId if numeric
+		},
+		Vectors: qdrant.NewVectors(result.Embedding...),
+		Payload: qdrant.NewValueMap(payload),
+	}
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("embedding request failded with: %v - %v", resp.StatusCode, string(bodyBytes))
-	}
-
-	var result struct {
-		Embedding []float32 `json:"embedding"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failded to decode embedding: %w", err)
-	}
-	embedding := make([]float64, len(result.Embedding))
-
-	return &EmbeddedDocs{embedding, line}, nil
+	return point, nil
 }
 
-func (store *Store) AddVectors(collectionName string, vector *EmbeddedDocs) error {
-
-	collection := store.Client.Database("honeypot").Collection(collectionName)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	resp, err := collection.InsertOne(ctx, vector)
-	if err != nil {
-		log.Printf("Could not insert mongo honeypot database: %v", err)
-	}
-	log.Printf("Inserted mongo %v %v", collectionName, resp)
+func (store *Store) CreateCollection(collectionName string, vectorSize uint64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	var defaultSeg *uint64
+	v := uint64(2)
+	defaultSeg = &v
+	err := store.Client.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: collectionName,
+		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
+			Size:     vectorSize,
+			Distance: qdrant.Distance_Dot,
+		}),
+		OptimizersConfig: &qdrant.OptimizersConfigDiff{
+			DefaultSegmentNumber: defaultSeg,
+		},
+	})
+	if err != nil {
+		log.Fatalf("Fatal error creating collection: %v", err)
+	}
+	return err
+}
+
+func (store *Store) AddVectors(collectionName string, upsertPoints []*qdrant.PointStruct) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	connect, err := store.Client.CollectionExists(ctx, collectionName)
+	if err != nil {
+		log.Fatalf("Fatal error connecting to collection: %v", err)
+	}
+	if !connect {
+		store.CreateCollection(collectionName, 4096)
+	}
+	_, err = store.Client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: collectionName,
+		Points:         upsertPoints,
+	})
+	if err != nil {
+		log.Fatalf("Could not upsert points: %v", err)
+	}
+	log.Println("Upsert", len(upsertPoints), "points")
 	return err
 }

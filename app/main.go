@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/app/server"
+	"github.com/qdrant/go-client/qdrant"
 	"log"
 	"net"
 	"net/http"
@@ -21,7 +22,7 @@ func main() {
 	os.Setenv("GO_ENV", "development")
 	os.Setenv("OLLAMA_URL", "http://Ollama:11434")
 	os.Setenv("MODEL", "mistral")
-	os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
+	//os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
 	ctx := context.Background()
 
 	var ollamaRawUrl string
@@ -101,8 +102,8 @@ func main() {
 		log.Fatalf("Failed to init ssh emulator: %v", err)
 	}
 	sshContext, _ := sshEmulator.GetContext()
-	lineChan := make(chan string, 1000)
-	embeddingChan := make(chan *emulator.EmbeddedDocs, 1000)
+	lineChan := make(chan string, 100)
+	embeddingChan := make(chan *qdrant.PointStruct, 1000)
 	log.Printf("Starting to embed data")
 	go func() {
 		defer close(lineChan)
@@ -111,6 +112,9 @@ func main() {
 			log.Printf("Failed to read context files: %v", err)
 		}
 		for _, line := range lines {
+			if len(line) == 0 {
+				continue
+			}
 			select {
 			case lineChan <- line:
 			default:
@@ -137,14 +141,33 @@ func main() {
 		}
 	}()
 	go func() {
-		for embedding := range embeddingChan {
-			nodeCtx, err := sshEmulator.GetContext()
-			if err != nil {
-				log.Printf("Failed to get context: %v", err)
-			}
-			err = store.AddVectors(nodeCtx.CollectionName, embedding)
-			if err != nil {
-				log.Printf("Failed to add vectors: %v", err)
+		batch := make([]*qdrant.PointStruct, 0, 100)
+		ticker := time.NewTicker(2 * time.Second)
+		batchSize := 20
+		defer ticker.Stop()
+		for {
+			select {
+			case embedding, ok := <-embeddingChan:
+				if !ok {
+					if len(batch) > 0 {
+						store.AddVectors("ssh_emulator", batch)
+					}
+					log.Printf("Ebedding err: %v", ok)
+					return
+				}
+				if embedding != nil {
+					batch = append(batch, embedding)
+				}
+				batch = append(batch, embedding)
+				if len(batch) > batchSize {
+					store.AddVectors("ssh_emulator", batch)
+					batch = batch[:0]
+				}
+			case <-ticker.C:
+				if len(batch) > 0 {
+					store.AddVectors("ssh_emulator", batch)
+					batch = batch[:0]
+				}
 			}
 		}
 	}()

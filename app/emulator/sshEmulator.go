@@ -18,7 +18,7 @@ func (s *SSHEmulator) Init(store *Store) error {
 
 	// Hardcoded context values for now; tweak later
 	s.Context = NodeContext{
-		CollectionName: "ssh_context",
+		CollectionName: "ssh_emulator",
 		PathToContext:  "data/ssh",
 		Store:          store,
 	}
@@ -29,7 +29,7 @@ func (s *SSHEmulator) Init(store *Store) error {
 func (s *SSHEmulator) HandleInput(channel ssh.Channel) error {
 	//REPL Loop
 	term := terminal.NewTerminal(channel, "> ")
-	chatSession := NewChatSession("ssh_connection", s.Context.Store)
+	chatSession := NewChatSession("ssh_connection", "ssh_emulator", s.Context.Store)
 
 	log.Printf("channel, %v", channel)
 	for {
