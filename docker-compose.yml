@@ -57,8 +57,7 @@ services:
       - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=3
     networks:
-      honeynet:
-        ipv4_address: 172.18.0.12
+      - honeynet
     restart: unless-stopped
 
 volumes:
