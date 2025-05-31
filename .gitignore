@@ -1,4 +1,6 @@
-ssh_keys/*
+honeypot-core/ssh_keys/*
 auth_keys/*"
-authorized_keys
+honeypot-core/authorized_keys
 windows/*
+fuxa/*
+

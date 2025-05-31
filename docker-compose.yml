@@ -1,4 +1,18 @@
 services:
+  fuxa:
+    image: frangoteam/fuxa:latest
+    networks:
+      - honeynet
+    ports:
+      - "1881:1881"
+    volumes:
+      - ./fuxa/fuxa_appdata:/usr/src/app/FUXA/server/_appdata
+      - ./fuxa/fuxa_db:/usr/src/app/FUXA/server/_db
+      - ./fuxa/fuxa_logs:/usr/src/app/FUXA/server/_logs
+    environment:
+      - TZ=America/New_York
+    restart: always
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
@@ -10,18 +24,6 @@ services:
     networks:
       - honeynet
     restart: unless-stopped
-#  vector_store:
-#    image: mongo:latest
-#    restart: always
-#    ports:
-#      - '27017:27017'
-#    environment:
-#      MONGO_INITDB_ROOT_USERNAME: 'admin'
-#      MONGO_INITDB_ROOT_PASSWORD: 'password'
-#    volumes:
-#      - vector_data:/mongodb/storage
-#    networks:
-#      - honeynet
 
   ollama:
     image: ollama/ollama
@@ -41,7 +43,7 @@ services:
   honeypot:
     build:
       context: .
-      dockerfile: Dockerfile-App
+      dockerfile: ./honeypot-core/Dockerfile-App
     ports:
       - "2222:2222" # TODO need to change to handle prot 22
       - "502:502"
