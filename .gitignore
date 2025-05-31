@@ -4,3 +4,4 @@ honeypot-core/authorized_keys
 windows/*
 fuxa/*
 
+env-finetune/

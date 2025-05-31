@@ -7,12 +7,13 @@ package server
 
 import (
 	"fmt"
-	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"net"
 	"os"
 	"sync"
+
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
 )
 
 type SSHServer struct {

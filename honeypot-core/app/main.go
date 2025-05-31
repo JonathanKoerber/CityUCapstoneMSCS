@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/JonathanKoerber/CityUCapstoneMSCS/cd honeypot-core/app/server"
-	emulator2 "github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
-	"github.com/qdrant/go-client/qdrant"
 	"log"
 	"net"
 	"net/http"
@@ -13,7 +10,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/server"
 	"github.com/ollama/ollama/api"
+	"github.com/qdrant/go-client/qdrant"
 )
 
 // TODO move env to docker env
@@ -68,13 +68,13 @@ func main() {
 		log.Printf("Model found: %s\n", modelName)
 	}
 
-	store := emulator2.Store{}
+	store := emulator.Store{}
 	if err := store.Init(); err != nil {
 		log.Printf("Failed to init store: %v", err)
 	}
 	// set up store
 	// register emulators
-	sshEmulator := emulator2.NewSSHEmulator()
+	sshEmulator := emulator.NewSSHEmulator()
 	if err := sshEmulator.Init(&store); err != nil {
 		log.Fatalf("Failed to init ssh emulator: %v", err)
 	}
@@ -172,7 +172,7 @@ func main() {
 	}()
 	go func() {
 		log.Println("Listening for outgoing connections from inComming Channels")
-		sshEmulator := emulator2.NewSSHEmulator()
+		sshEmulator := emulator.NewSSHEmulator()
 		sshEmulator.Init(&store)
 		for conn := range inComingChan {
 			go sshServer.HandleConn(conn, *sshEmulator)

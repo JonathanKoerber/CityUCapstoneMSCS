@@ -2,7 +2,9 @@ services:
   fuxa:
     image: frangoteam/fuxa:latest
     networks:
-      - honeynet
+      honeynet:
+        ipv4_address: 172.18.0.20
+      # icsnet: {}  # Uncomment to connect FUXA to ICS network
     ports:
       - "1881:1881"
     volumes:
@@ -13,6 +15,25 @@ services:
       - TZ=America/New_York
     restart: always
 
+  honeypot:
+    build:
+      context: ./honeypot-core
+      dockerfile: Dockerfile-Dev
+    volumes:
+      - ./honeypot-core:/honeypot-core  # mount entire codebase
+    working_dir: /honeypot-core/app
+    ports:
+      - "502:502"
+      - "1502:1502"
+      - "2222:2222"
+    depends_on:
+      - qdrant
+      - ollama
+    networks:
+      honeynet:
+        ipv4_address: 172.18.0.10
+#      icsnet: {}  # Optional: connect honeypot to ICS network
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
@@ -22,41 +43,41 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      - honeynet
+      honeynet:
+        ipv4_address: 172.18.0.11
     restart: unless-stopped
 
   ollama:
     image: ollama/ollama
     ports:
-      - "11424:11434"
+      - "11434:11434"
     volumes:
       - ollama:/root/.ollama
     environment:
       - OLLAMA_NUM_PARALLEL=4
       - OLLAMA_MAX_LOADED_MODELS=3
-
     networks:
-      - honeynet
-#    CMD: ["/bin/sh", "-c", "ollama pull deepseek-coder && ollama serve"]
-
-
-  honeypot:
-    build:
-      context: .
-      dockerfile: ./honeypot-core/Dockerfile-App
-    ports:
-      - "2222:2222" # TODO need to change to handle prot 22
-      - "502:502"
-    depends_on:
-      - qdrant
-#      - vector_store
-      - ollama
-    networks:
-      - honeynet
-
-networks:
-  honeynet:
+      honeynet:
+        ipv4_address: 172.18.0.12
+    restart: unless-stopped
 
 volumes:
   ollama:
   qdrant_data:
+
+networks:
+  honeynet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+
+#  icsnet:
+#    external: true
+
+    #icsnet: {}  # <--- Also here
+#  docker network create -d macvlan \
+#  --subnet=192.168.100.0/24 \
+#  --gateway=192.168.100.1 \
+#  -o parent=eth0 \
+#  icsnet
