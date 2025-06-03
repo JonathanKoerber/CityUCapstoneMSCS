@@ -23,7 +23,7 @@ FROM debian:bookworm
 WORKDIR /app
 
 COPY --from=builder /honeypot-core/app/ssh-honeypot .
-COPY ../data /app/data
+COPY app/data /app/data
 COPY /honeypot-core/authorized_keys /app/authorized_keys
 COPY /honeypot-core/ssh_keys   /app/ssh_keys
 

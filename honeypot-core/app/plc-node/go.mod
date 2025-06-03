@@ -1,4 +1,4 @@
-module plc-node
+module main
 
 go 1.24.2
 

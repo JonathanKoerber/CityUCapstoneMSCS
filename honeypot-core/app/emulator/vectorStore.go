@@ -71,7 +71,7 @@ func (store *Store) ReadContextFiles(nodeContext NodeContext) ([]string, error) 
 	var lines []string
 	for _, entry := range data {
 		if entry.IsDir() {
-			//dirPath := filepath.Join(nodeContext.PathToContext, entry.Name())
+			//dirPath := filepath.Join(nodeContext.PathToContext, entry.ImageName())
 			//data.append(data, os.ReadDir(dirPath))
 			continue
 		}

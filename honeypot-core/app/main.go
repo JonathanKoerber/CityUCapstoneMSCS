@@ -3,17 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
+	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/server"
+	"github.com/ollama/ollama/api"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"time"
-
-	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
-	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/server"
-	"github.com/ollama/ollama/api"
-	"github.com/qdrant/go-client/qdrant"
 )
 
 // TODO move env to docker env
@@ -67,7 +64,7 @@ func main() {
 	} else {
 		log.Printf("Model found: %s\n", modelName)
 	}
-
+	// -------------------------- Emulator Context ----------------------------
 	store := emulator.Store{}
 	if err := store.Init(); err != nil {
 		log.Printf("Failed to init store: %v", err)
@@ -76,78 +73,18 @@ func main() {
 	// register emulators
 	sshEmulator := emulator.NewSSHEmulator()
 	if err := sshEmulator.Init(&store); err != nil {
+
 		log.Fatalf("Failed to init ssh emulator: %v", err)
 	}
-	sshContext, _ := sshEmulator.GetContext()
-	lineChan := make(chan string, 100)
-	embeddingChan := make(chan *qdrant.PointStruct, 1000)
-	log.Printf("Starting to embed data")
-	go func() {
-		defer close(lineChan)
-		lines, err := store.ReadContextFiles(sshContext)
-		if err != nil {
-			log.Printf("Failed to read context files: %v", err)
-		}
-		for _, line := range lines {
-			if len(line) == 0 {
-				continue
-			}
-			select {
-			case lineChan <- line:
-			default:
-				log.Printf("Line channel full, waiting...")
-				time.Sleep(1 * time.Second)
-				lineChan <- line
-			}
-		}
-	}()
-	go func() {
-		defer close(embeddingChan)
-		for line := range lineChan {
-			embedding, err := store.EmbedDocs(line)
-			if err != nil {
-				log.Printf("Failed to embed context: %v", err)
-				continue
-			}
-			select {
-			case embeddingChan <- embedding:
-			default:
-				log.Printf("Embedding channel full, waiting...")
-				time.Sleep(1 * time.Second)
-			}
-		}
-	}()
-	go func() {
-		batch := make([]*qdrant.PointStruct, 0, 100)
-		ticker := time.NewTicker(2 * time.Second)
-		batchSize := 20
-		defer ticker.Stop()
-		for {
-			select {
-			case embedding, ok := <-embeddingChan:
-				if !ok {
-					if len(batch) > 0 {
-						store.AddVectors("ssh_emulator", batch)
-					}
-					log.Printf("Ebedding err: %v", ok)
-					return
-				}
-				if embedding != nil {
-					batch = append(batch, embedding)
-				}
-				batch = append(batch, embedding)
-				if len(batch) > batchSize {
-					store.AddVectors("ssh_emulator", batch)
-					batch = batch[:0]
-				}
-			case <-ticker.C:
-				if len(batch) > 0 {
-					store.AddVectors("ssh_emulator", batch)
-					batch = batch[:0]
-				}
-			}
-		}
-	}()
+	sshContext, err := sshEmulator.GetContext()
+	if err != nil {
+		log.Fatalf("Failed to get SSH context: %v", err)
+	}
+	err = emulator.EmbedContext(sshContext, store)
+
+	if err != nil {
+		log.Fatalf("Failed to embed context: %v", err)
+	}
 	// Start and run protocol Servers
 	log.Println("Data embedded")
 	sshServer, err := server.NewSSHServer(2222)
@@ -177,12 +114,27 @@ func main() {
 		for conn := range inComingChan {
 			go sshServer.HandleConn(conn, *sshEmulator)
 		}
-		log.Println("Done from inComming Channels")
+		log.Println("Done from incoming Channels")
 	}()
 	if err != nil {
 		log.Fatalf("Failed to create server ssh server: %v", err)
 	}
-
+	//ics := ics_node.NewICS()
+	//modbusDevice := ics_node.DeviceConfig{
+	//	ImageName:      "blink",
+	//	IP:             "172.18.0.6",
+	//	Port:           "502", // "502"
+	//	Net:            "tcp", // "tcp"
+	//	BridgeName:     "honeynet",
+	//	Protocol:       "modbus",
+	//	DeviceName:     "blink_light",
+	//	ContextDir:     "",
+	//	DockerfilePath: "plc-node/Dockerfile-Modbus-TCP",
+	//	Dockerfile:     "Dockerfile-Modbus-TCP",
+	//	ContainerName:  "blink_light",
+	//}
+	// err = ics.BuildAndRunContainer(ctx, modbusDevice)
+	// if err != nil { log.Fatalf("Failed to build container: %v", err) }
 	fmt.Println("Servers running...")
 	select {}
 }

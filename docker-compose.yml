@@ -2,8 +2,8 @@ services:
   fuxa:
     image: frangoteam/fuxa:latest
     networks:
-      honeynet:
-        ipv4_address: 172.18.0.20
+      - honeynet
+      - fuxanet
       # icsnet: {}  # Uncomment to connect FUXA to ICS network
     ports:
       - "1881:1881"
@@ -19,8 +19,11 @@ services:
     build:
       context: ./honeypot-core
       dockerfile: Dockerfile-Dev
+    environment:
+      - DOCKER_API_VERSION=1.49
     volumes:
       - ./honeypot-core:/honeypot-core  # mount entire codebase
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /honeypot-core/app
     ports:
       - "502:502"
@@ -33,24 +36,47 @@ services:
       honeynet:
         ipv4_address: 172.18.0.10
 #      icsnet: {}  # Optional: connect honeypot to ICS network
+# ---- Devices ----
+
+  device01:
+    container_name: pump01
+    build:
+      context: ./honeypot-core/app/plc-node
+      dockerfile: Dockerfile-Modbus-TCP
+    environment:
+      DEVICE_NAME: "PumpUnit1"
+      DEVICE_ID: "1"
+      DEVICE_MODE: "idle"
+      # Temp
+      DEVICE_READING_01: "22.5"
+      DEVICE_BOUNDS_01: "50"
+      # Presure
+      DEVICE_READING_02: "68.5"
+      DEVICE_BOUNDS_02: "50"
+      DEVICE_ERROR: "0"
+      DEVICE_IS_RUNNING: "true"
+    expose:
+      - "502"
+    networks:
+      honeynet:
+        ipv4_address: 172.18.0.15
 
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
+    expose:
+      - "6333"
+      - "6334"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      honeynet:
-        ipv4_address: 172.18.0.11
+      - honeynet
     restart: unless-stopped
 
   ollama:
     image: ollama/ollama
-    ports:
-      - "11434:11434"
+    expose:
+      - "11434"
     volumes:
       - ollama:/root/.ollama
     environment:
@@ -66,10 +92,15 @@ volumes:
 
 networks:
   honeynet:
+    name: honeynet
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: 172.18.0.0/16
+  fuxanet:
+    name: fuxanet
+    driver: bridge
 
 #  icsnet:
 #    external: true

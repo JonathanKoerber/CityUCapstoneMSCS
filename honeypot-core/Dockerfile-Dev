@@ -11,6 +11,8 @@ RUN go mod download
 
 COPY ./  .
 
+COPY app/plc-node /plc-node
+
 RUN go build -o honeypot-core /honeypot/app/main.go
 
 CMD ["/honeypot/honeypot-core"]
