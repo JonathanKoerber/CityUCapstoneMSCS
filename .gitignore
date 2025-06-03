@@ -1,5 +1,5 @@
 honeypot-core/ssh_keys/*
-auth_keys/*"
+# auth_keys/*"
 honeypot-core/authorized_keys
 windows/*
 fuxa/*
