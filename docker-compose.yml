@@ -44,19 +44,11 @@ services:
       context: ./honeypot-core/app/plc-node
       dockerfile: Dockerfile-Modbus-TCP
     environment:
-      DEVICE_NAME: "PumpUnit1"
-      DEVICE_ID: "1"
-      DEVICE_MODE: "idle"
-      # Temp
-      DEVICE_READING_01: "22.5"
-      DEVICE_BOUNDS_01: "50"
-      # Presure
-      DEVICE_READING_02: "68.5"
-      DEVICE_BOUNDS_02: "50"
-      DEVICE_ERROR: "0"
-      DEVICE_IS_RUNNING: "true"
+      "CONTEXT_PATH": "./plc-node/Device-Config/pump_unit1.json"
     expose:
       - "502"
+    volumes:
+      - ./plc-node/Device-Config:/plc-node/Device-Config
     networks:
       honeynet:
         ipv4_address: 172.18.0.15

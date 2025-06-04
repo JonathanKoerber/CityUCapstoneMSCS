@@ -8,9 +8,8 @@ import (
 
 func main() {
 	log.Printf("Starting Modbus TCP Server")
-	ms := modbusServer.NewModbusTCPServer()
-	ms.Start(502)
-
+	server := modbusServer.NewModbusTCPServer(502)
+	server.Start()
 	log.Printf("Server Modbus running ...")
 	// get the server running.
 	select {}
