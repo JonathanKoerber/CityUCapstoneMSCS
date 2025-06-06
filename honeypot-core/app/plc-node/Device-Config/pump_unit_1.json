@@ -1,6 +1,6 @@
 [
   {
-    "deviceId": 1,
+    "deviceId": "101",
     "deviceName": "MainPump",
     "lowerBound": "32",
     "lowerWarn": "40",
@@ -8,7 +8,7 @@
     "upperWarn": "80",
     "metaData": {
       "context": "at the begining",
-      "processNeighbors": [0,2]
+      "processNeighbors": ["100","102"]
     }
   }
 ]

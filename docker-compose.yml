@@ -44,11 +44,11 @@ services:
       context: ./honeypot-core/app/plc-node
       dockerfile: Dockerfile-Modbus-TCP
     environment:
-      "CONTEXT_PATH": "./plc-node/Device-Config/pump_unit1.json"
+      "CONTEXT_PATH": "/app/Device-Config/pump_unit_1.json"
     expose:
       - "502"
     volumes:
-      - ./plc-node/Device-Config:/plc-node/Device-Config
+      - ./honeypot-core/app/plc-node/Device-Config:/app/Device-Config
     networks:
       honeynet:
         ipv4_address: 172.18.0.15
