@@ -56,3 +56,59 @@ func (s *SSHEmulator) GetContext() (NodeContext, error) {
 func (s *SSHEmulator) Close() error {
 	return nil
 }
+
+//// REPL-based handler piping into fuxa
+//func (s *SSHEmulator) HandleInput(channel ssh.Channel) error {
+//	defer channel.Close()
+//
+//	// Setup SSH config to connect to container (update creds!)
+//	config := &ssh.ClientConfig{
+//		User: "root", // or whatever username your FUXA container uses
+//		Auth: []ssh.AuthMethod{
+//			ssh.Password("fuxaPassword"), // replace with your actual container password
+//		},
+//		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // DO NOT use in production
+//	}
+//
+//	// Address of the FUXA container
+//	addr := "cityucapstonemscs-fuxa-1:2222" // or "localhost:2222" if mapped
+//
+//	// Dial the container
+//	client, err := ssh.Dial("tcp", addr, config)
+//	if err != nil {
+//		log.Printf("failed to connect to container: %v", err)
+//		return err
+//	}
+//	defer client.Close()
+//
+//	// Create session
+//	session, err := client.NewSession()
+//	if err != nil {
+//		log.Printf("failed to create session: %v", err)
+//		return err
+//	}
+//	defer session.Close()
+//
+//	// Get stdin/stdout/stderr
+//	containerIn, _ := session.StdinPipe()
+//	containerOut, _ := session.StdoutPipe()
+//	containerErr, _ := session.StderrPipe()
+//
+//	// Start a shell
+//	if err := session.Shell(); err != nil {
+//		log.Printf("failed to start shell: %v", err)
+//		return err
+//	}
+//
+//	// Proxy data
+//	go io.Copy(containerIn, channel)           // user input → container
+//	go io.Copy(channel, containerOut)          // container output → user
+//	go io.Copy(channel.Stderr(), containerErr) // container stderr → user
+//
+//	// Wait for session to end
+//	if err := session.Wait(); err != nil {
+//		log.Printf("session finished with error: %v", err)
+//	}
+//
+//	return nil
+//}

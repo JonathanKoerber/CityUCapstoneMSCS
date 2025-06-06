@@ -94,7 +94,6 @@ func (h *ModbusHandler) HandleDiscreteInputs(req *modbus.DiscreteInputsRequest) 
 }
 
 func (h *ModbusHandler) HandleHoldingRegisters(req *modbus.HoldingRegistersRequest) (res []uint16, err error) {
-	log.Printf("Handle holding registers: %v", req)
 	//	var regAddr uint16
 	// get device
 	deviceId := req.UnitId
@@ -107,7 +106,6 @@ func (h *ModbusHandler) HandleHoldingRegisters(req *modbus.HoldingRegistersReque
 	defer h.lock.Unlock()
 	// only support address 100 and quantity 1
 	if req.Addr != 100 || req.Quantity != 1 {
-		log.Printf("Invalid address (%d) or quantity (%d)", req.Addr, req.Quantity)
 		return nil, modbus.ErrIllegalDataAddress
 	}
 
@@ -125,7 +123,6 @@ func (h *ModbusHandler) HandleHoldingRegisters(req *modbus.HoldingRegistersReque
 // operation is received by the server.
 // Note that input registers are always read-only as per the modbus spec.
 func (h *ModbusHandler) HandleInputRegisters(req *modbus.InputRegistersRequest) (res []uint16, err error) {
-	log.Printf("Handle input registers: %v", req)
 	var unixTs_s uint32
 	var minusOne int16 = -1
 

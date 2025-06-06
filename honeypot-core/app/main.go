@@ -18,7 +18,7 @@ func main() {
 	// ENV VAR
 	os.Setenv("GO_ENV", "development")
 	os.Setenv("OLLAMA_URL", "http://Ollama:11434")
-	os.Setenv("MODEL", "mistral")
+	os.Setenv("MODEL", "phi")
 	//os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
 	ctx := context.Background()
 

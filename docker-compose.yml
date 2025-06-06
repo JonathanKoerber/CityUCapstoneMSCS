@@ -1,18 +1,20 @@
 services:
   fuxa:
     image: frangoteam/fuxa:latest
-    networks:
-      - honeynet
-      - fuxanet
-      # icsnet: {}  # Uncomment to connect FUXA to ICS network
+     # icsnet: {}  # Uncomment to connect FUXA to ICS network
     ports:
       - "1881:1881"
+      - "2222:2222"
     volumes:
       - ./fuxa/fuxa_appdata:/usr/src/app/FUXA/server/_appdata
       - ./fuxa/fuxa_db:/usr/src/app/FUXA/server/_db
       - ./fuxa/fuxa_logs:/usr/src/app/FUXA/server/_logs
     environment:
       - TZ=America/New_York
+    networks:
+      - honeynet
+      - fuxanet
+
     restart: always
 
   honeypot:
@@ -28,7 +30,7 @@ services:
     ports:
       - "502:502"
       - "1502:1502"
-      - "2222:2222"
+      - "22:22"
     depends_on:
       - qdrant
       - ollama
@@ -86,7 +88,8 @@ networks:
   honeynet:
     name: honeynet
     driver: bridge
-    internal: true
+    # I This need to beudo
+    # internal: true
     ipam:
       config:
         - subnet: 172.18.0.0/16

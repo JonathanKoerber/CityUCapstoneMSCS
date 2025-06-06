@@ -8,4 +8,4 @@ go run main.go
 
 #### Access SSH
 
-`ssh user@l ocalhost -p 2222`
+`ssh user@localhost -p 2222`

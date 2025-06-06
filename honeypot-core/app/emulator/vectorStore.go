@@ -162,7 +162,7 @@ func (store *Store) AddVectors(collectionName string, upsertPoints []*qdrant.Poi
 		log.Fatalf("Fatal error connecting to collection: %v", err)
 	}
 	if !connect {
-		store.CreateCollection(collectionName, 4096)
+		store.CreateCollection(collectionName, 2560)
 	}
 	_, err = store.Client.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: collectionName,

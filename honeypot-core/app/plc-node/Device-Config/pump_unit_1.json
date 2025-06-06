@@ -2,10 +2,10 @@
   {
     "deviceId": "101",
     "deviceName": "MainPump",
-    "lowerBound": "32",
-    "lowerWarn": "40",
-    "upperBound": "100",
-    "upperWarn": "80",
+    "lowerBound": "0",
+    "lowerWarn": "320",
+    "upperBound": "250",
+    "upperWarn": "230",
     "metaData": {
       "context": "at the begining",
       "processNeighbors": ["100","102"]

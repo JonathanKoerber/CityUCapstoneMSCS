@@ -67,7 +67,7 @@ func (s *SSHServer) Start() {
 		},
 	}
 	log.Println("Reading private key files")
-	privateBytes, err := os.ReadFile("ssh_keys/id_rsa")
+	privateBytes, err := os.ReadFile("../ssh_keys/id_rsa")
 	if err != nil {
 		log.Printf("Failed to load private keys, err: %v", err)
 	}
