@@ -1,0 +1,54 @@
+FROM frangoteam/fuxa:latest
+
+# --- Install required packages ---
+RUN apt-get update && apt-get install -y \
+    curl \
+    cron \
+    openssh-server \
+    bash \
+    sudo \
+    net-tools \
+    vim \
+    gnupg \
+    wget \
+    influxdb \
+    && apt-get clean
+
+# --- Create users ---
+RUN useradd -m -s /bin/bash fuxa && echo "fuxa:fuxa" | chpasswd && adduser fuxa sudo
+RUN useradd -m -s /bin/bash admin && echo "admin:password" | chpasswd && adduser admin sudo
+
+# Create typical admin user directories
+RUN mkdir -p /home/admin/Downloads /home/admin/Documents /home/admin/Desktop && \
+    chown -R admin:admin /home/admin
+
+# Setup SSH and Cron directories
+RUN mkdir -p /var/run/sshd /var/run/cron
+
+# Expose SSH ports
+EXPOSE 22 2222
+
+# Copy cron job script and set permissions
+COPY cron-jobs/logger.sh /etc/cron.hourly/logger
+RUN chmod +x /etc/cron.hourly/logger
+
+# Create fake ICS app directory structure
+RUN mkdir -p /opt/fakeics/logs /opt/fakeics/config
+
+# Setup work directory for FUXA app
+WORKDIR /usr/src/app/FUXA
+
+# Copy the app source code
+COPY . /usr/src/app/FUXA
+
+# Fix permissions on FUXA volumes
+RUN chown -R fuxa:fuxa /usr/src/app/FUXA/server/_appdata /usr/src/app/FUXA/server/_db /usr/src/app/FUXA/server/_logs || true
+
+# Copy entrypoint script and make executable
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+## Run as admin user for realistic SSH sessions
+#USER admin
+
+ENTRYPOINT ["/entrypoint.sh"]

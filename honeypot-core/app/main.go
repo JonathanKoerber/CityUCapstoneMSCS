@@ -1,70 +1,79 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/emulator"
 	"github.com/JonathanKoerber/CityUCapstoneMSCS/honeypot-core/app/server"
-	"github.com/ollama/ollama/api"
 	"log"
 	"net"
-	"net/http"
-	"net/url"
-	"os"
 )
 
 // TODO move env to docker env
 func main() {
+	//// proxy pass to sshpiperd
+	//configPath := "./honeypot-core/.sshpiper/sshpiperd.yaml"
+	//
+	//// start sshpip process
+	//cmd := exec.Command("sshpiperd", "--config", configPath)
+	//cmd.Stdout = log.Writer()
+	//cmd.Stderr = log.Writer()
+	//
+	//err := cmd.Start()
+	//if err != nil {
+	//	log.Fatalf("Failed to start sshpiperd, err: %v", err)
+	//}
+	//log.Println("sshpiperd started with PID: ", cmd.Process.Pid)
+	//time.Sleep(2 * time.Second)
+
 	// ENV VAR
-	os.Setenv("GO_ENV", "development")
-	os.Setenv("OLLAMA_URL", "http://Ollama:11434")
-	os.Setenv("MODEL", "phi")
-	//os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
-	ctx := context.Background()
-
-	var ollamaRawUrl string
-	if ollamaRawUrl = os.Getenv("OLLAMA_URL"); ollamaRawUrl == "" {
-		ollamaRawUrl = "http://Ollama:11434"
-	}
-
-	ollamaURL, _ := url.Parse(ollamaRawUrl)
-	client := api.NewClient(ollamaURL, http.DefaultClient)
-	modelName := os.Getenv("MODEL")
-	models, err := client.List(ctx)
-
-	log.Printf("Ollama list: %v", models)
-	found := false
-	if err != nil || models == nil {
-		log.Printf("Failed to list models: %v:", err)
-	} else {
-		for _, m := range models.Models {
-			log.Printf("Model name: %s\n", m.Name)
-			if m.Name == modelName {
-				found = true
-				log.Printf("Found model name: %s\n", m.Name)
-				break
-			}
-		}
-	}
-
-	progressFunc := func(resp api.ProgressResponse) error {
-		fmt.Printf("Progress: status=%v, total=%v, completed=%v\n", resp.Status, resp.Total, resp.Completed)
-		return nil
-	}
-
-	if !found {
-		log.Printf("Model not found: %s", modelName)
-		err = client.Pull(ctx, &api.PullRequest{Model: modelName}, progressFunc)
-
-		if err != nil {
-			log.Printf("Failed to pull model: %v:", err)
-		} else {
-			log.Printf("Pulling model successfully: %s\n", modelName)
-		}
-	} else {
-		log.Printf("Model found: %s\n", modelName)
-	}
-	// -------------------------- Emulator Context ----------------------------
+	//os.Setenv("GO_ENV", "development")
+	//os.Setenv("OLLAMA_URL", "http://Ollama:11434")
+	//os.Setenv("MODEL", "phi")
+	////os.Setenv("VEC_STORE_URI", "mongodb://admin:password@vector_store:27017/?authSource=admin")
+	//ctx := context.Background()
+	//
+	//var ollamaRawUrl string
+	//if ollamaRawUrl = os.Getenv("OLLAMA_URL"); ollamaRawUrl == "" {
+	//	ollamaRawUrl = "http://Ollama:11434"
+	//}
+	//
+	//ollamaURL, _ := url.Parse(ollamaRawUrl)
+	//client := api.NewClient(ollamaURL, http.DefaultClient)
+	//modelName := os.Getenv("MODEL")
+	//models, err := client.List(ctx)
+	//
+	//log.Printf("Ollama list: %v", models)
+	//found := false
+	//if err != nil || models == nil {
+	//	log.Printf("Failed to list models: %v:", err)
+	//} else {
+	//	for _, m := range models.Models {
+	//		log.Printf("Model name: %s\n", m.Name)
+	//		if m.Name == modelName {
+	//			found = true
+	//			log.Printf("Found model name: %s\n", m.Name)
+	//			break
+	//		}
+	//	}
+	//}
+	//
+	//progressFunc := func(resp api.ProgressResponse) error {
+	//	fmt.Printf("Progress: status=%v, total=%v, completed=%v\n", resp.Status, resp.Total, resp.Completed)
+	//	return nil
+	//}
+	//
+	//if !found {
+	//	log.Printf("Model not found: %s", modelName)
+	//	err = client.Pull(ctx, &api.PullRequest{Model: modelName}, progressFunc)
+	//
+	//	if err != nil {
+	//		log.Printf("Failed to pull model: %v:", err)
+	//	} else {
+	//		log.Printf("Pulling model successfully: %s\n", modelName)
+	//	}
+	//} else {
+	//	log.Printf("Model found: %s\n", modelName)
+	//}
+	//// -------------------------- Emulator Context ----------------------------
 	store := emulator.Store{}
 	if err := store.Init(); err != nil {
 		log.Printf("Failed to init store: %v", err)
@@ -135,6 +144,6 @@ func main() {
 	//}
 	// err = ics.BuildAndRunContainer(ctx, modbusDevice)
 	// if err != nil { log.Fatalf("Failed to build container: %v", err) }
-	fmt.Println("Servers running...")
+	//fmt.Println("Servers running...")
 	select {}
 }

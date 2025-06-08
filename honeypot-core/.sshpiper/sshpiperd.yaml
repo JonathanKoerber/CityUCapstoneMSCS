@@ -1,0 +1,10 @@
+listen: "0.0.0.0:2222"
+hostkeyfiles:
+  - "/honeypot-core/ssh_keys/id_rsa"
+password_auth: true
+piplines:
+  default:
+    upstream:
+      addr: "cityucapstonemscs-fuxa-1:22"
+      username: "admin"
+      password: "adminpass"

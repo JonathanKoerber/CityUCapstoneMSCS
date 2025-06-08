@@ -1,10 +1,14 @@
 services:
   fuxa:
-    image: frangoteam/fuxa:latest
-     # icsnet: {}  # Uncomment to connect FUXA to ICS network
+    build:
+      context: ./honeypot-core/target
+      dockerfile: ./Dockerfile-Target
+    container_name: ICS
     ports:
       - "1881:1881"
-      - "2222:2222"
+    expose:
+      - "2222"
+      - "22"
     volumes:
       - ./fuxa/fuxa_appdata:/usr/src/app/FUXA/server/_appdata
       - ./fuxa/fuxa_db:/usr/src/app/FUXA/server/_db
@@ -14,8 +18,23 @@ services:
     networks:
       - honeynet
       - fuxanet
-
+    depends_on:
+      - influxdb
     restart: always
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=ics_logs
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=admin123
+    networks:
+      - honeynet
+    restart: unless-stopped
 
   honeypot:
     build:
@@ -30,13 +49,14 @@ services:
     ports:
       - "502:502"
       - "1502:1502"
+      - "2222:2222"
       - "22:22"
     depends_on:
       - qdrant
       - ollama
     networks:
       honeynet:
-        ipv4_address: 172.18.0.10
+        ipv4_address: 192.168.100.9
 #      icsnet: {}  # Optional: connect honeypot to ICS network
 # ---- Devices ----
 
@@ -53,7 +73,7 @@ services:
       - ./honeypot-core/app/plc-node/Device-Config:/app/Device-Config
     networks:
       honeynet:
-        ipv4_address: 172.18.0.15
+        ipv4_address: 192.168.100.7
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -83,19 +103,20 @@ services:
 volumes:
   ollama:
   qdrant_data:
+  fuxa:
+  influxdb_data:
 
 networks:
   honeynet:
     name: honeynet
     driver: bridge
-    # I This need to beudo
-    # internal: true
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 192.168.0.0/16
   fuxanet:
     name: fuxanet
     driver: bridge
+    internal: true
 
 #  icsnet:
 #    external: true

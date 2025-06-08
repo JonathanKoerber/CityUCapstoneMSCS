@@ -3,7 +3,7 @@
     "deviceId": "101",
     "deviceName": "MainPump",
     "lowerBound": "0",
-    "lowerWarn": "320",
+    "lowerWarn": "32",
     "upperBound": "250",
     "upperWarn": "230",
     "metaData": {
