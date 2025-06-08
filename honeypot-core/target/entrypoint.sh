@@ -1,10 +1,14 @@
 #!/bin/bash
 
-# Generate host keys if not present
-ssh-keygen -A
+# Start SSH as root
+service ssh start
 
-# Start cron
-service cron start
+# Make sure the cron directory is writable
+mkdir -p /var/run/cron
+chown root:root /var/run/cron
 
-# Start SSH
-/usr/sbin/sshd -D
+# Start cron as root
+cron
+
+# Keep container alive
+tail -f /dev/null

@@ -71,7 +71,7 @@ func (s *SSHEmulator) HandleInput(channel ssh.Channel) error {
 		Timeout:         5 * time.Second,
 	}
 
-	addr := "ICS:22" // Make sure this matches the container SSH port
+	addr := "ics-host:22" // Make sure this matches the container SSH port
 
 	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
