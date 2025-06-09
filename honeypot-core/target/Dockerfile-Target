@@ -23,7 +23,10 @@ RUN useradd -m -s /bin/bash fuxa && echo "fuxa:fuxa" | chpasswd && adduser fuxa 
 RUN useradd -m -s /bin/bash admin && echo "admin:password" | chpasswd && adduser admin sudo
 
 # Create typical user folders
-RUN mkdir -p /home/admin/{Downloads,Documents,Desktop} && chown -R admin:admin /home/admin
+RUN mkdir -p /home/admin/Downloads && \
+    mkdir -p /home/admin/Desktop && \
+    mkdir -p /home/admin/Documents && \
+    chown -R admin:admin /home/admin
 
 # Setup SSH
 RUN mkdir -p /var/run/sshd

@@ -14,6 +14,8 @@ type ModbusDevice struct {
 	deviceFault bool
 	manualStop  bool
 
+	target int16
+
 	lowerBound int16
 	lowerWarn  int16
 	upperBound int16
@@ -82,6 +84,13 @@ func NewModbusDeviceFromContext(context map[string]string) (*ModbusDevice, error
 		}
 		device.upperWarn = int16(upperWarn)
 	}
+	if val, ok := context["target"]; ok {
+		target, err := strconv.Atoi(val)
+		if err != nil {
+			device.target = int16(target)
+		}
+
+	}
 	return device, nil
 }
 
@@ -129,13 +138,16 @@ func (device *ModbusDevice) ManualStart() {
 
 func (d *ModbusDevice) SimulateActivity() {
 	// Randomly flip booleans with ~20% chance
-	d.online = flipWithChance(d.online, 0.2)
+	d.online = flipWithChance(d.online, 0.02)
 	d.active = flipWithChance(d.active, 0.2)
 	d.manualStop = flipWithChance(d.manualStop, 0.1)
 
 	// Simulate sensor reading fluctuation
 	change := rand.Intn(11) - 5 // -5 to +5
 	newReading := int(d.reading) + change
+	if newReading == 0 {
+		newReading = int(d.target)
+	}
 	if newReading < int(d.lowerBound) {
 		newReading = int(d.lowerBound)
 	}

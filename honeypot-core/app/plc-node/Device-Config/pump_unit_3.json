@@ -1,0 +1,15 @@
+[
+  {
+    "deviceId": "103",
+    "deviceName": "BackupPump",
+    "lowerBound": "0",
+    "lowerWarn": "10",
+    "upperBound": "100",
+    "upperWarn": "95",
+    "target": "60",
+    "metaData": {
+      "context": "at the begining",
+      "processNeighbors": ["102"]
+    }
+  }
+]

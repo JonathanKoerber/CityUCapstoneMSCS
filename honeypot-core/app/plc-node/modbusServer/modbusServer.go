@@ -113,7 +113,7 @@ func (h *ModbusHandler) HandleHoldingRegisters(req *modbus.HoldingRegistersReque
 	if req.IsWrite && len(req.Args) == 1 {
 		device.reading = int16(req.Args[0])
 	}
-
+	log.Printf("Handle holding registerters for unit id %d", deviceId)
 	res = append(res, uint16(device.reading))
 	return
 }

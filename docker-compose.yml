@@ -11,10 +11,11 @@ services:
     environment:
       - TZ=America/New_York
     networks:
-      - honeynet
+      - ics-net
     depends_on:
       - influxdb
     restart: always
+
   ics-host:
     build:
       context: ./honeypot-core/target
@@ -28,6 +29,7 @@ services:
     networks:
       - ics-net
     restart: always
+
   influxdb:
     image: influxdb:1.8
     container_name: influxdb
@@ -41,7 +43,7 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=admin123
     networks:
         ics-net:
-          - ipv4_address: 172.38.1.10
+          ipv4_address: 172.38.0.10
     restart: unless-stopped
 
   honeypot:
@@ -82,8 +84,38 @@ services:
     volumes:
       - ./honeypot-core/app/plc-node/Device-Config:/app/Device-Config
     networks:
-      honeynet:
-        ipv4_address: 172.28.1.20
+      ics-net:
+        ipv4_address: 172.38.0.20
+
+  device02:
+    container_name: pump02
+    build:
+      context: ./honeypot-core/app/plc-node
+      dockerfile: Dockerfile-Modbus-TCP
+    environment:
+      "CONTEXT_PATH": "/app/Device-Config/pump_unit_2.json"
+    expose:
+      - "502"
+    volumes:
+      - ./honeypot-core/app/plc-node/Device-Config:/app/Device-Config
+    networks:
+      ics-net:
+        ipv4_address: 172.38.0.22
+
+  device03:
+    container_name: pump03
+    build:
+      context: ./honeypot-core/app/plc-node
+      dockerfile: Dockerfile-Modbus-TCP
+    environment:
+      "CONTEXT_PATH": "/app/Device-Config/pump_unit_3.json"
+    expose:
+      - "502"
+    volumes:
+      - ./honeypot-core/app/plc-node/Device-Config:/app/Device-Config
+    networks:
+      ics-net:
+        ipv4_address: 172.38.0.23
 
   qdrant:
     image: qdrant/qdrant:latest

@@ -1,14 +1,15 @@
 [
   {
     "deviceId": "101",
-    "deviceName": "MainPump",
+    "deviceName": "Temp",
     "lowerBound": "0",
     "lowerWarn": "32",
     "upperBound": "250",
     "upperWarn": "230",
+    "target": "200",
     "metaData": {
       "context": "at the begining",
-      "processNeighbors": ["100","102"]
+      "processNeighbors": ["102"]
     }
   }
 ]
